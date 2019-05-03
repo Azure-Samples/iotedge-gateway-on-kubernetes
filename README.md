@@ -1,57 +1,114 @@
-# Project Name
+# IoT Edge workloads on Kubernetes
 
-(short, 1-3 sentenced, description of the project)
+IoT Edge integration with Kubernetes enables users to deploy an Azure IoT Edge workload to a Kubernetes cluster on premises. With this new integration, customers can use the feature-rich and resilient infrastructure layer that Kubernetes provides to run their Azure IoT Edge workloads, which are managed centrally and securely from Azure IoT Hub. 
 
-## Features
+IoT Edge registers a Custom Resource Definition (CRD) with the Kubernetes API Server. Additionally, it provides an Operator (IoT Edge agent) that reconciles cloud-managed desired state with the local cluster state.
 
-This project framework provides the following features:
+Module lifetime is managed by the Kubernetes scheduler, which maintains module availability and chooses their placement. IoT Edge manages the edge application platform running on top, continuously reconciling the desired state specified in IoT Hub with the state on the edge cluster. The edge application model is still the familiar model based on IoT Edge modules and routes. The IoT Edge agent operator performs automatic translation to the Kubernetes natives constructs like pods, deployments, services etc.
 
-* Feature 1
-* Feature 2
-* ...
+Here is a high-level architecture diagram: 
 
-## Getting Started
+![IoT Edge on Kubernetes architecture](media/k8s-arch.png)
+
+Every component of the edge deployment is scoped to a Kubernetes namespace specific to the device, making it possible to share the same cluster resources among multiple edge devices and their deployments.
+
+## Using IoT Edge as a gateway for downstream devices 
+
+The edge device in a Kubernetes cluster can be used as an [IoT gateway for downstream devices](https://docs.microsoft.com/azure/iot-edge/iot-edge-as-gateway). It can be deployed on Kubernetes in a manner resilient to node failure thus providing high availability to edge deployments. 
+
+There are three additional Kubernetes components external to IoT Edge we'll need to leverage to enable this scenario:
+
+* A network load balancer to provide a stable IP address or DNS name to access services in the edge deployment. Cloud providers leverage their specific technologies to provide this functionality out of the box. However, it is bit more challenging in on-prem environments. [Here](https://github.com/ramitsurana/awesome-kubernetes#load-balancing) is a non-definitive list of possible options. We have tested with [metalLB](https://metallb.universe.tf/) which might be a good on-prem option if your Kubernetes provider or distribution comes up short.
+
+* A [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/) provisioner with support for [persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/). This is leveraged by edge daemon pod to store module credential information which can be persisted across nodes should the pod be reinitialized on a different node. This facility can be used by other edge modules as well (for e.g. Edge Hub) to persistent data in a Kubernetes environment. Here is a [list](https://github.com/ramitsurana/awesome-kubernetes#persistent-volume-providers) of possible options.
+
+* An ingress controller, to route external traffic to different service endpoints exposed by the edge deployment. While not strictly required, an ingress controller provides useful features like TLS termination, exposing multiple services behind a single IP address (or host name) and integration with public certificate authorities like [Lets Encrypt](https://letsencrypt.org/). There are a number of [options](https://github.com/ramitsurana/awesome-kubernetes#load-balancing) in this space, we  tested with [Voyager](https://github.com/appscode/voyager) which provides good support for non-HTTP TCP based protocols like MQTTS and AMQP.
 
 ### Prerequisites
 
-(ideally very short, if any)
+In this example setup we'll use the following components:
 
-- OS
-- Library version
-- ...
+* [Azure Kubernetes Service](https://docs.microsoft.com/azure/aks/) (AKS) for a hosted Kubernetes environment
+* [Helm](https://helm.sh/), to install applications into the cluster
+* The Kubernetes command-line tool, [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/), to run commands against the cluster
+* [Docker Desktop](https://docs.docker.com/install/#supported-platforms) to run a simulated downstream device 
+* [Voyager](https://appscode.com/products/voyager/) (v10.0.0), a HAProxy based ingress controller
+* [mkcert](https://mkcert.dev), a simple tool for creating development TLS certificates
 
-### Installation
+### Quickstart gateway setup without server TLS validation and Ingress controller 
 
-(ideally very short)
-
-- npm install [package name]
-- mvn install
-- ...
-
-### Quickstart
-(Add steps to get up and running quickly)
-
-1. git clone [repository clone url]
-2. cd [respository name]
-3. ...
+**Note: this setup is for testing only**
 
 
-## Demo
+1. [Create an AKS cluster](https://docs.microsoft.com/azure/aks/kubernetes-walkthrough?view=azure-cli-latest#create-aks-cluster) and [connect to it](https://docs.microsoft.com/azure/aks/kubernetes-walkthrough?view=azure-cli-latest#connect-to-the-cluster). 
+    >   Use `--node-count 2` in the `az aks create` command to test high availability.
 
-A demo app is included to show how to use the project.
 
-To run the demo, follow these steps:
+1. [Create an Azure File storage class](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-storage-class), [a cluster role and binding](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-cluster-role-and-binding), and [a persistent volume claim](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-persistent-volume-claim).
 
-(Add steps to start up the demo)
 
-1.
-2.
-3.
+1. Initialize `helm` by [creating a service account](https://docs.microsoft.com/azure/aks/kubernetes-helm#create-a-service-account) and configuring it with the basic initialization step:
 
-## Resources
+    ```shell
+    helm init --service-account tiller
+    ```
 
-(Any additional resources or related projects)
+1. [Create an IoT Hub](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#create-an-iot-hub), [register an IoT Edge device](https://docs.microsoft.com/en-us/azure/iot-edge/how-to-register-device-cli), and note its connection string.
 
-- Link to supporting information
-- Link to similar sample
-- ...
+1. Helm install `iotedged` and `edgeagent` into your cluster, specifying the device connection string and the persistent volume claim we created previously. For example:
+
+    ```shell
+    helm install \
+    --name k8s-gw \
+    --set "deviceConnectionString=replace-with-device-connection-string" \
+    --set "iotedged.data.persistentVolumeClaim.name=azurefile" \
+    --set "iotedged.data.persistentVolumeClaim.storageClassName=azurefile" \
+    edgek8s/edge-kubernetes
+    ```
+
+1. Note the external IP address of the `edgehub` service using the following command (it can take a few minutes for the external IP to be assigned)
+
+    ```shell
+    kubectl get service --all-namespaces
+    ```
+
+1. To test the IoT Edge gateway, create a IoT device (non-edge) in the same IoT Hub as the device. Note the IoT device's connection string and use it in the following command.
+
+    ```shell
+    docker run \
+    -e DEVCONSTR="replace-with-non-edge-iot-device-connection-string;GatewayHostName=edgehub-external-ip-from-previous-step" \
+    veyalla/sample-client
+    ```
+
+    You should see the sample client succesfully connecting, and ingesting sample data to IoT Hub via the edge device!
+
+    ```shell
+    $ docker run \
+        -e DEVCONSTR="xxxxxxxxx;GatewayHostName=a.b.c.d" \
+        veyalla/sample-client:latest
+
+    Connection Status Changed to Connected
+    Connection Status Changed Reason is Connection_Ok
+
+    Device sending 5000 messages to IoTHub with delay 3000 ms
+
+            05/03/2019 21:55:59> Sending message: 0, Data: [{"messageId":0,"temperature":20,"humidity":74}]
+            05/03/2019 21:56:03> Sending message: 1, Data: [{"messageId":1,"temperature":29,"humidity":75}]
+    ```
+
+    The sample client disables server validation and no doesn't need the root CA certificate that edge device's server certificate is rooted from.
+
+### Exposing edge services via a Kubernetes ingress 
+
+1. Install the Voyager ingress controller into the cluster using these steps:
+
+    ```shell
+    helm repo add appscode https://charts.appscode.com/stable/
+
+    helm repo update
+
+    helm install appscode/voyager --name voyager-operator --version 10.0.0 \
+    --namespace kube-system \
+    --set cloudProvider=aks
+    ```
+
