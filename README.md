@@ -4,17 +4,17 @@ IoT Edge integration with Kubernetes enables users to deploy an Azure IoT Edge w
 
 IoT Edge registers a Custom Resource Definition (CRD) with the Kubernetes API Server. Additionally, it provides an Operator (IoT Edge agent) that reconciles cloud-managed desired state with the local cluster state.
 
-Module lifetime is managed by the Kubernetes scheduler, which maintains module availability and chooses their placement. IoT Edge manages the edge application platform running on top, continuously reconciling the desired state specified in IoT Hub with the state on the edge cluster. The edge application model is still the familiar model based on IoT Edge modules and routes. The IoT Edge agent operator performs automatic translation to the Kubernetes natives constructs like pods, deployments, services etc.
+Module lifetime is managed by the Kubernetes scheduler, which maintains module availability and chooses their placement. IoT Edge manages the edge application platform running on top, continuously reconciling the desired state specified in IoT Hub with the state on the edge cluster. The edge application model is still the familiar model based on IoT Edge modules and routes. The IoT Edge agent operator performs automatic translation to the Kubernetes native constructs like pods, deployments, services etc.
 
 Here is a high-level architecture diagram: 
 
 ![IoT Edge on Kubernetes architecture](media/k8s-arch.png)
 
-Every component of the edge deployment is scoped to a Kubernetes namespace specific to the device, making it possible to share the same cluster resources among multiple edge devices and their deployments.
+Every component of the edge deployment is scoped to a Kubernetes namespace specific to that device, making it possible to share the same cluster resources among multiple edge devices and their deployments.
 
 ## Using IoT Edge as a gateway for downstream devices 
 
-The edge device in a Kubernetes cluster can be used as an [IoT gateway for downstream devices](https://docs.microsoft.com/azure/iot-edge/iot-edge-as-gateway). It can be deployed on Kubernetes in a manner resilient to node failure thus providing high availability to edge deployments. 
+An IoT Edge device in a Kubernetes cluster can be used as an [gateway for downstream devices](https://docs.microsoft.com/azure/iot-edge/iot-edge-as-gateway). It can be deployed on Kubernetes in a manner resilient to node failure thus providing improved availability to edge deployments. 
 
 There are three additional Kubernetes components external to IoT Edge we'll need to leverage to enable this scenario:
 
@@ -26,7 +26,7 @@ There are three additional Kubernetes components external to IoT Edge we'll need
 
 ## Prerequisites
 
-In this example setup we'll use the following components:
+In the deployment scenarios below we'll use the following components:
 
 * [Azure Kubernetes Service](https://docs.microsoft.com/azure/aks/) (AKS) for a hosted Kubernetes environment
 * [Helm](https://helm.sh/), to install applications into the cluster
@@ -35,17 +35,15 @@ In this example setup we'll use the following components:
 * [Voyager](https://appscode.com/products/voyager/) (v10.0.0), a HAProxy based ingress controller
 * [mkcert](https://mkcert.dev), a simple tool for creating development TLS certificates
 
+We also assume a *linuxy* environment for issuing the required commands.
+
 ## Basic transparent gateway setup  
 
-**Note: this setup is for testing only**
+1. [Create an AKS cluster](https://docs.microsoft.com/azure/aks/kubernetes-walkthrough?view=azure-cli-latest#create-aks-cluster) and [connect to it](https://docs.microsoft.com/azure/aks/kubernetes-walkthrough?view=azure-cli-latest#connect-to-the-cluster).
 
-
-1. [Create an AKS cluster](https://docs.microsoft.com/azure/aks/kubernetes-walkthrough?view=azure-cli-latest#create-aks-cluster) and [connect to it](https://docs.microsoft.com/azure/aks/kubernetes-walkthrough?view=azure-cli-latest#connect-to-the-cluster). 
     >   Use `--node-count 2` in the `az aks create` command to test high availability.
 
-
 1. [Create an Azure File storage class](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-storage-class), [a cluster role and binding](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-cluster-role-and-binding), and [a persistent volume claim](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-persistent-volume-claim).
-
 
 1. Initialize `helm` by [creating a service account](https://docs.microsoft.com/azure/aks/kubernetes-helm#create-a-service-account) and configuring it with the basic initialization step:
 
