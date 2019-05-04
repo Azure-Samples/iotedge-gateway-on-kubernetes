@@ -35,7 +35,7 @@ In this example setup we'll use the following components:
 * [Voyager](https://appscode.com/products/voyager/) (v10.0.0), a HAProxy based ingress controller
 * [mkcert](https://mkcert.dev), a simple tool for creating development TLS certificates
 
-## Basic basic transparent gateway setup  
+## Basic transparent gateway setup  
 
 **Note: this setup is for testing only**
 
@@ -69,13 +69,13 @@ In this example setup we'll use the following components:
 
     Resources for the device will be created under a namespace with naming convention `msiot-<hub_name>-<device_name>`
 
-1. Note the external IP address of the `edgehub` service using the following command (it can take a few minutes for the external IP to be assigned)
+1. Note the **external** IP address of the `edgehub` service using the following command (it can take a few minutes for the external IP to be assigned)
 
     ```shell
     kubectl get service --all-namespaces
     ```
 
-1. To test the IoT Edge gateway, create a IoT device (non-edge) in the same IoT Hub as the device. Note the IoT device's connection string and use it in the following command.
+1. To test the IoT Edge gateway, [create a (non-edge) IoT device](https://docs.microsoft.com/en-us/azure/iot-hub/quickstart-send-telemetry-c#register-a-device) in the same IoT Hub as the edge device. Note the IoT device's connection string and use it in the following command.
 
     ```shell
     docker run \
@@ -96,12 +96,12 @@ In this example setup we'll use the following components:
     Device sending 5000 messages to IoTHub with delay 3000 ms
 
             05/03/2019 21:55:59> Sending message: 0, Data: [{"messageId":0,"temperature":20,"humidity":74}]
-            05/03/2019 21:56:03> Sending message: 1, Data: [{"messageId":1,"tempey rature":29,"humidity":75}]
+            05/03/2019 21:56:03> Sending message: 1, Data: [{"messageId":1,"temperature":29,"humidity":75}]
     ```
 
     >The sample client disables TLS server validation, something you shouldn't do in production.
 
-## Exposing edge services via a Kubernetes ingress
+## Expose edge services via a Kubernetes ingress
 
 There are advantages to exposing an edge deployment's services through an ingress controller:
 
@@ -115,6 +115,9 @@ We'll use [Voyager](https://github.com/appscode/voyager), a open source ingress 
 
     ```shell
     helm delete --purge k8s-gw
+
+    # Check namespaces in the cluster
+    kubectl get ns
     ```
 
 1. If you've not already, follow the steps until, but not including `helm install ...` from the previous section. Then deploy the edge device into the cluster without specifying the `LoadBalancer` service type.
@@ -128,9 +131,9 @@ We'll use [Voyager](https://github.com/appscode/voyager), a open source ingress 
     edgek8s/edge-kubernetes
     ```
 
-    This creates Kubernetes services of type `ClusterIP` when translating the edge deployment.
+    This creates Kubernetes services of type `ClusterIP` (this is the default setting) when translating the edge deployment.
 
-1. Helm install the Voyager ingress controller into the cluster using these steps:
+1. Helm install the Voyager ingress controller into the AKS cluster using these steps:
 
     ```shell
     helm repo add appscode https://charts.appscode.com/stable/
@@ -141,3 +144,53 @@ We'll use [Voyager](https://github.com/appscode/voyager), a open source ingress 
     --namespace kube-system \
     --set cloudProvider=aks
     ```
+
+    Verify that the `voyager-operator` is up and running the `kube-system` namespace.
+
+    ```shell
+    kubectl get pods -n kube-system | grep "voyager"
+    ```
+
+1. Create an ingress resource for the `edgehub` MQTTS service (port 8883) using the command below. Be sure to replace the namespace in the yaml file with the one created for your edge device. This is of the form `msiot-<hub_name>-<edge_device_name>`.
+
+    ```shell
+    echo "
+    apiVersion: voyager.appscode.com/v1beta1
+    kind: Ingress
+    metadata:
+      name: edge-ingress
+      namespace: <<replace-with-edge-device-namespace>>
+      annotations:
+        ingress.appscode.com/type: LoadBalancer
+    spec:
+      rules:
+      - host: '*'
+        tcp:
+          port: '8883'
+          noTLS: true
+          backend:
+            serviceName: edgehub
+            servicePort: '8883'
+    " | kubectl create -f -
+    ```
+
+    If you have other modules in the IoT Edge deployment that expose services, you can create ingresses for them by adding additional `port` and `backend` entries in the yaml above.
+
+    You can view the external IP address for the ingress using the command below. The externally accessible address is at column 5. It can take a few minutes to get assigned.
+
+    ```shell
+    kubectl get svc --all-namespaces | grep "edge-ingress"
+    ```
+
+1. To test the IoT Edge gateway via a ingress IP, [create a (non-edge) IoT device](https://docs.microsoft.com/en-us/azure/iot-hub/quickstart-send-telemetry-c#register-a-device) in the same IoT Hub as the edge device. Note the IoT device's connection string and use it in the following command.
+
+    ```shell
+    docker run \
+    -e DEVCONSTR="replace-with-non-edge-iot-device-connection-string;GatewayHostName=edgehub-external-ip-from-previous-step" \
+    veyalla/sample-client
+
+## Terminating TLS at ingress point
+
+**Coming soon!**
+
+
