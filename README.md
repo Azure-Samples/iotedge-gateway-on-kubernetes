@@ -1,6 +1,6 @@
 # IoT Edge workloads on Kubernetes
 
-IoT Edge integration with Kubernetes enables users to deploy an Azure IoT Edge workload to a Kubernetes cluster on premise. With this new integration, customers can use the feature-rich and resilient infrastructure layer that Kubernetes provides to run their Azure IoT Edge workloads, which are managed centrally and securely from Azure IoT Hub. 
+IoT Edge integration with Kubernetes enables users to deploy an Azure IoT Edge workload to a Kubernetes cluster on premises. With this new integration, customers can use the feature-rich and resilient infrastructure layer that Kubernetes provides to run their Azure IoT Edge workloads, which are managed centrally and securely from Azure IoT Hub. 
 
 IoT Edge registers a Custom Resource Definition (CRD) representing an Edge deployment with the Kubernetes API Server. Additionally, it provides an [Operator](https://coreos.com/blog/introducing-operators.html) (IoT Edge Agent) that reconciles cloud-managed desired state with the local cluster state.
 
@@ -43,24 +43,24 @@ We also assume a *linuxy* environment for issuing the required commands.
 
     >   Use `--node-count 2` in the `az aks create` command to test high availability.
 
-2. [Create an Azure File storage class](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-storage-class), [a cluster role and binding](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-cluster-role-and-binding), and [a persistent volume claim](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-persistent-volume-claim).
+1. [Create an Azure File storage class](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-storage-class), [a cluster role and binding](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-cluster-role-and-binding), and [a persistent volume claim](https://docs.microsoft.com/azure/aks/azure-files-dynamic-pv#create-a-persistent-volume-claim).
 
-3. Initialize `helm` by [creating a service account](https://docs.microsoft.com/azure/aks/kubernetes-helm#create-a-service-account) and configuring it with the basic initialization step:
+1. Initialize `helm` by [creating a service account](https://docs.microsoft.com/azure/aks/kubernetes-helm#create-a-service-account) and configuring it with the basic initialization step:
 
     ```shell
     helm init --service-account tiller
     ```
 
-4. Add IoT Edge's Helm repo to the Helm CLI:
+1. Add IoT Edge's Helm repo to the Helm CLI:
 
     ```shell
     helm repo add edgek8s https://edgek8s.blob.core.windows.net/helm/ 
     helm repo update
     ```
 
-5. [Create an IoT Hub](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#create-an-iot-hub), [register an IoT Edge device](https://docs.microsoft.com/en-us/azure/iot-edge/how-to-register-device-cli), and note its connection string.
+1. [Create an IoT Hub](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#create-an-iot-hub), [register an IoT Edge device](https://docs.microsoft.com/en-us/azure/iot-edge/how-to-register-device-cli), and note its connection string.
 
-6. Helm install `iotedged` and `edgeagent` into your cluster, specifying the device connection string and the persistent volume claim we created previously. For example:
+1. Helm install `iotedged` and `edgeagent` into your cluster, specifying the device connection string and the persistent volume claim we created previously. For example:
 
     ```shell
     helm install \
@@ -74,13 +74,13 @@ We also assume a *linuxy* environment for issuing the required commands.
 
     Resources for the device will be created under a namespace with naming convention `msiot-<hub_name>-<device_name>`
 
-7. Note the **external** IP address of the `edgehub` service using the following command (it can take a few minutes for the external IP to be assigned)
+1. Note the **external** IP address of the `edgehub` service using the following command (it can take a few minutes for the external IP to be assigned)
 
     ```shell
     kubectl get service --all-namespaces
     ```
 
-8. To test the IoT Edge gateway, [create a (non-edge) IoT device](https://docs.microsoft.com/en-us/azure/iot-hub/quickstart-send-telemetry-c#register-a-device) in the same IoT Hub as the edge device. Note the IoT device's connection string and use it in the following command.
+1. To test the IoT Edge gateway, [create a (non-edge) IoT device](https://docs.microsoft.com/en-us/azure/iot-hub/quickstart-send-telemetry-c#register-a-device) in the same IoT Hub as the edge device. Note the IoT device's connection string and use it in the following command.
 
     ```shell
     docker run \
@@ -125,7 +125,7 @@ We'll use [Voyager](https://github.com/appscode/voyager), an open source ingress
     kubectl get ns
     ```
 
-2. Follow the steps until, but not including `helm install ...` from the previous section if you haven't already done so. Then deploy the edge device into the cluster without specifying the `LoadBalancer` service type.
+1. Follow the steps until, but not including `helm install ...` from the previous section if you haven't already done so. Then deploy the edge device into the cluster without specifying the `LoadBalancer` service type.
 
     ```shell
     helm install \
@@ -138,7 +138,7 @@ We'll use [Voyager](https://github.com/appscode/voyager), an open source ingress
 
     This creates Kubernetes services of type `ClusterIP` (this is the default setting) when translating the edge deployment.
 
-3. Helm install the Voyager ingress controller into the AKS cluster using these steps:
+1. Helm install the Voyager ingress controller into the AKS cluster using these steps:
 
     ```shell
     helm repo add appscode https://charts.appscode.com/stable/
@@ -156,7 +156,7 @@ We'll use [Voyager](https://github.com/appscode/voyager), an open source ingress
     kubectl get pods -n kube-system | grep "voyager"
     ```
 
-4. Create an ingress resource for the `edgehub` MQTTS service (port 8883) using the command below. Be sure to replace the namespace in the yaml file with the one created for your edge device. This is of the form `msiot-<hub_name>-<edge_device_name>`.
+1. Create an ingress resource for the `edgehub` MQTTS service (port 8883) using the command below. Be sure to replace the namespace in the yaml file with the one created for your edge device. This is of the form `msiot-<hub_name>-<edge_device_name>`.
 
     ```shell
     echo "
@@ -187,7 +187,7 @@ We'll use [Voyager](https://github.com/appscode/voyager), an open source ingress
     kubectl get svc --all-namespaces | grep "edge-ingress"
     ```
 
-5. To test the IoT Edge gateway via an ingress IP, [create a (non-edge) IoT device](https://docs.microsoft.com/en-us/azure/iot-hub/quickstart-send-telemetry-c#register-a-device) in the same IoT Hub as the edge device. Note the IoT device's connection string and use it in the following command.
+1. To test the IoT Edge gateway via an ingress IP, [create a (non-edge) IoT device](https://docs.microsoft.com/en-us/azure/iot-hub/quickstart-send-telemetry-c#register-a-device) in the same IoT Hub as the edge device. Note the IoT device's connection string and use it in the following command.
 
     ```shell
     docker run \
