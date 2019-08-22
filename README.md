@@ -1,3 +1,15 @@
+---
+page_type: sample
+languages:
+- azurecli
+products:
+- azure-iot-edge
+- azure-kubernetes-service
+name:
+- Deploy IoT Edge Gateway on Kubernetes
+---
+
+
 # IoT Edge workloads on Kubernetes
 
 IoT Edge integration with Kubernetes enables users to deploy an Azure IoT Edge workload to a Kubernetes cluster on premises. With this new integration, customers can use the feature-rich and resilient infrastructure layer that Kubernetes provides to run their Azure IoT Edge workloads, which are managed centrally and securely from Azure IoT Hub. 
