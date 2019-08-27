@@ -5,8 +5,7 @@ languages:
 products:
 - azure-iot-edge
 - azure-kubernetes-service
-name:
-- Deploy IoT Edge Gateway on Kubernetes
+name: Deploy IoT Edge Gateway on Kubernetes
 ---
 
 # IoT Edge workloads on Kubernetes
